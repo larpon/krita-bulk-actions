@@ -4,7 +4,7 @@ A Krita plugin for bulk actions and operations on multiple marked layers.
 
 This plugin provides a sort of layer "tag" functionality.
 You "tag" each layer with a character or string - allowing the plugin to identify
-layers as a collection or group across spread across the layer tree.
+layers as a collection or group spread across the layer tree.
 
 You can then perform different actions on these "tagged" layers at once.
 It is possible to use some supported unicode characters as tags (e.g. ⭕, 👁 or ⭮) to keep layer names as
