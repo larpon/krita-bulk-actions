@@ -1,0 +1,1 @@
+# Krita Bulk Actions

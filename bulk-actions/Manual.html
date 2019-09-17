@@ -1,0 +1,53 @@
+<h1>
+<a id="user-content-bulk-actions" class="anchor" href="#bulk-actions" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Bulk Actions</h1>
+<p>A Krita plugin for bulk actions and operations on multiple marked layers.</p>
+<p>This plugin provides a sort of layer "tag" functionality.
+You "tag" each layer with a character or string - allowing the plugin to identify
+layers as a collection or group across spread across the layer tree.</p>
+<p>You can then perform different actions on these "tagged" layers at once.
+It is possible to use some supported unicode characters as tags (e.g. ⭕, <g-emoji class="g-emoji" alias="eye" fallback-src="https://github.githubassets.com/images/icons/emoji/unicode/1f441.png">👁</g-emoji> or ⭮) to keep layer names as
+uncluttered as possible.</p>
+<p>This is especially convenient if you have a layers you want to switch on and off often spread across
+the layer tree.</p>
+<h2>
+<a id="user-content-example" class="anchor" href="#example" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Example</h2>
+<p>You have character with different body parts and those body parts have layers for shadows.
+You want to be able to see the character with and without the effect of your shadows.
+You then simply mark those layers with a character i.e: "@" in the layer name and then setup a
+bulk action for changing their visibility:</p>
+<pre><code>Root
+  +-- Robot
+  |    |
+  |    +-- Head
+  |    |     |
+  |    |     +-- Outline
+  |    |     +-- Shadows @     &lt;-- This is the marked layer
+  |    |     +-- Color
+  |    |
+  |    +-- Body
+  |    |     |
+  |    |     +-- Outline
+  |    |     +-- Shadows @     &lt;-- This is the marked layer
+  |    |     +-- Color
+  |    |
+  |    +-- Legs
+  |          |
+  |          +-- Outline
+  |          +-- Shadows @     &lt;-- This is the marked layer
+  |          +-- Color
+  |
+  |
+  Background
+</code></pre>
+<p>You then click the Add Action: <code>+</code> in the Bulk Actions dock.
+Then select <code>Visible</code> in the ComboBox and type <code>@</code> in the input field.</p>
+<p>Pressing enter in the input field or clicking the checkmark button will then toggle the visibility of those layers.</p>
+<p>You can add as many actions as you like with as many marks you like.</p>
+<p>You can save and load your settings within each Krita document <code>.kra</code> file.
+At this point Krita's scripting API don't allow for any user/script data to be stored within the document - so the plugin will store
+it's data in a layer inside the layer tree called "Plugin Settings". You can move the layer around the tree and change it's state - but you
+can't delete it or rename it without the settings being cleared.</p>
+<h2>
+<a id="user-content-demo" class="anchor" href="#demo" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Demo</h2>
+<p>You can also see a quick <a href="https://youtu.be/wTWlr6GYXBQ" rel="nofollow">demo video</a> of the plugin in action.</p>
+<p>Happy bulk actioning!</p>
