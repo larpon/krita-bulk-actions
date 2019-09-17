@@ -68,5 +68,6 @@ Due to the current state of Krita's scripting API there's a few things to notice
     * The plugin will store it's data in a layer inside the layer tree called "Plugin Settings".
     * You can move the layer around the tree and change it's state
     * You can't delete it or rename it without the settings being unreadable.
+* For saving of visibility states **only** I have been notified of [Compositions](https://docs.krita.org/en/reference_manual/dockers/compositions.html) which does much the same as "Visible" settings will do in this plugin.
 
 Happy bulk actioning!
