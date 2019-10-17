@@ -96,9 +96,9 @@ class BulkActionWidget(QWidget):
             partial(self.doAction, self.actionsComboBox, self.matchLineEdit)
         )
 
+        hblayout.addWidget(applyButton)
         hblayout.addWidget(self.actionsComboBox)
         hblayout.addWidget(self.matchLineEdit)
-        hblayout.addWidget(applyButton)
 
     def actionsComboBoxActivated(self, combo):
         index = combo.currentIndex()
@@ -207,6 +207,10 @@ class BulkActionsDockWidget(DockWidget):
 
     def hasSettings(self):
 
+        # TODO The following works but it's saved in kritarc - we want a way to save it with the document
+        #entry = Application.readSetting('bulkActionsPlugin', 'settings', None)
+        #return entry is not None
+
         doc = KI.activeDocument()
         root = doc.rootNode()
         root = KritaNode(root)
@@ -223,11 +227,18 @@ class BulkActionsDockWidget(DockWidget):
 
         if len(children) == 0:
             return False
-
         return True
 
     def loadSettings(self):
         #print('Loading...')
+
+        # TODO The following works but it's saved in kritarc - we want a way to save it with the document
+        #entry = Application.readSetting('bulkActionsPlugin', 'settings', None)
+        #return entry is not None
+        #decoded = Application.readSetting('bulkActionsPlugin', 'settings', None)
+        #decoded = base64.b64decode(decoded).decode('utf-8')
+        #return json.loads(decoded)
+
         decoded = None
 
         doc = KI.activeDocument()
@@ -272,6 +283,9 @@ class BulkActionsDockWidget(DockWidget):
             data = json.dumps({ 'version': 1.0, 'actions':bulkActions }, separators=(',', ':'))
             encodedBytes = base64.b64encode(data.encode("utf-8"))
             encoded = str(encodedBytes, "utf-8")
+
+            # TODO The following works but it's saved in kritarc - we want a way to save it with each document
+            #Application.writeSetting('bulkActionsPlugin', 'settings', encoded)
 
             doc = KI.activeDocument()
             root = doc.rootNode()
