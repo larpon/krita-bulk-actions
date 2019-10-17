@@ -195,7 +195,8 @@ class BulkActionsDockWidget(DockWidget):
         hBoxLayout.addWidget(removeButton)
 
         widget.setLayout(hBoxLayout)
-        self.listLayout.addWidget(widget)
+        #self.listLayout.addWidget(widget)
+        self.listLayout.insertWidget(0,widget)
 
         self.actions.append(bulkActionWidget)
 
