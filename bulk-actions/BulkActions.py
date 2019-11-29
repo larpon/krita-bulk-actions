@@ -3,6 +3,8 @@
 """
 Bulk Actions
 ------------
+Copyright 2019 Lars Pontoppidan <dev.larpon@gmail.com>
+
 Licensed under the GNU GPL v3.0 terms
 """
 
@@ -14,9 +16,9 @@ import base64
 
 from functools import partial
 from enum import IntEnum
-#from enum import Enum
 
 from krita import DockWidget, DockWidgetFactory, DockWidgetFactoryBase, Krita
+
 
 from PyQt5.QtCore import (
     QSize,
@@ -38,6 +40,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QGroupBox,
     QWidget,
+    QWIDGETSIZE_MAX
 )
 
 from .KritaNode import KritaNode
@@ -73,6 +76,7 @@ class BulkAction(IntEnum):
     BOOL_COLLAPSED = 3
     BOOL_INHERIT_ALPHA = 4
     SET_OPACITY = 5
+    SET_NAME = 6
 
 class BulkActionBaseWidget(QWidget):
     type = BulkActionType.BOOL
@@ -103,11 +107,11 @@ class BulkSetActionWidget(BulkActionBaseWidget):
 
         self.actionsComboBox = QComboBox()
         self.actionsComboBox.addItem('Opacity', BulkAction.SET_OPACITY)
+        self.actionsComboBox.addItem('Name', BulkAction.SET_NAME)
 
         self.matchLineEdit = QLineEdit()
         self.matchLineEdit.setText('')
         self.matchLineEdit.setPlaceholderText('pattern')
-
 
         self.valueLineEdit = QLineEdit()
         self.valueLineEdit.setText('')
@@ -139,6 +143,16 @@ class BulkSetActionWidget(BulkActionBaseWidget):
 
     def actionsComboBoxActivated(self, combo):
         index = combo.currentIndex()
+
+        if index == 0:
+            self.valueLineEdit.setPlaceholderText('0 - 100%')
+            self.valueLineEdit.setFixedWidth(55)
+            self.matchLineEdit.setPlaceholderText('pattern')
+        if index == 1:
+            self.valueLineEdit.setPlaceholderText('new name')
+            self.valueLineEdit.setFixedWidth(QWIDGETSIZE_MAX)
+            self.matchLineEdit.setPlaceholderText('old name')
+
         self.index = index
 
     def settings(self):
@@ -157,14 +171,20 @@ class BulkSetActionWidget(BulkActionBaseWidget):
 
         try:
             action_type = comboBox.itemData(comboBox.currentIndex())
+
             value_text = valueEdit.text()
             match_text = lineEdit.text()
-            numbers = re.compile('\d+(?:\.\d+)?')
-            value_text = numbers.findall(value_text)[0]
-            if value_text == '':
-                value_text = '100'
-            value_text = clamp(float(value_text),0,100)
-            value_text = int(remap(value_text,0.0,100.0,0,255))
+
+            if action_type is BulkAction.SET_OPACITY:
+                numbers = re.compile('\d+(?:\.\d+)?')
+                value_text = numbers.findall(value_text)[0]
+                if value_text == '':
+                    value_text = '100'
+                value_text = clamp(float(value_text),0,100)
+                value_text = int(remap(value_text,0.0,100.0,0,255))
+
+            if action_type is BulkAction.SET_NAME:
+                value_text = value_text
 
             root = doc.rootNode()
             root = KritaNode(root)
@@ -176,11 +196,21 @@ class BulkSetActionWidget(BulkActionBaseWidget):
             else:
                 it = filter(lambda n: n.match(lineEdit.text()), it)
 
+            count = sum(1 for _ in it)
+
             def setOpacity(n):
                 n.raw.setOpacity(value_text)
+            def setName(n):
+                count = count - 1
+                print( count, n.raw.name() ) # TODO
+                #n.raw.setName(value_text)
 
             if action_type is BulkAction.SET_OPACITY:
                 it = map(setOpacity, it)
+            if action_type is BulkAction.SET_NAME:
+                it = map(setName, it)
+
+
 
             kickstart(it)
             doc.refreshProjection()
