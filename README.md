@@ -16,6 +16,23 @@ the layer tree.
 ## Install
 You install the plugin by placing the `bulk-action` folder and `bulk-action.desktop` file from this repository in your `pykrita` folder. You can find the `pykrita` folder in the menu by going to *Settings -> Manage Resources...* and press the *Open Resources Folder* button.
 
+## Supported layer actions
+
+Leaving the `pattern` field empty will result in matching currently selected layers
+
+Set a value for the following attributes:
+
+* Opacity
+
+Toggle the following attributes:
+
+* Visible
+* Locked
+* Alpha Locked
+* Collapsed state
+* Inherit Alpha
+
+
 ## Example
 You have character with different body parts and those body parts have layers for shadows.
 You want to be able to see the character with and without the effect of your shadows.
@@ -62,6 +79,7 @@ You can also see a quick [demo video](https://youtu.be/wTWlr6GYXBQ) of the plugi
 
 ## Notes
 Due to the current state of Krita's scripting API there's a few things to notice:
+
 * When saving plugin settings you need to save your `.kra` document as well!
     * Krita will not detect when the settings changed you can force "change" by doing: `Ctrl+a` -> `Ctrl+Shift+a`
 * Krita's scripting API don't allow for any user/script data to be stored within the document

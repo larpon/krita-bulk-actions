@@ -7,12 +7,14 @@ Licensed under the GNU GPL v3.0 terms
 """
 
 import os
+import re
 import webbrowser
 import json
 import base64
 
 from functools import partial
-from enum import Enum
+from enum import IntEnum
+#from enum import Enum
 
 from krita import DockWidget, DockWidgetFactory, DockWidgetFactoryBase, Krita
 
@@ -47,43 +49,170 @@ from .Utils.Tree import iterPre
 
 KI = Krita.instance()
 
+def remap(oldValue, oldMin, oldMax, newMin, newMax):
+    # Linear conversion
+    if oldMin == newMin and oldMax == newMax:
+        return oldValue;
+    return (((oldValue - oldMin) * (newMax - newMin)) / (oldMax - oldMin)) + newMin;
+
+def clamp(value, clamp_min, clamp_max):
+    return min(clamp_max, max(clamp_min, value))
+
 def openHelp():
     webbrowser.open("https://github.com/Larpon/krita-bulk-actions", new=0, autoraise=True)
 
-class BulkAction(Enum):
+
+class BulkActionType(IntEnum):
+    BOOL = 0
+    SET = 1
+
+class BulkAction(IntEnum):
     BOOL_VISIBLE = 0
     BOOL_LOCKED = 1
     BOOL_ALPHA_LOCKED = 2
     BOOL_COLLAPSED = 3
     BOOL_INHERIT_ALPHA = 4
-    INT_OPACITY = 5
+    SET_OPACITY = 5
 
-class BulkActionWidget(QWidget):
+class BulkActionBaseWidget(QWidget):
+    type = BulkActionType.BOOL
+    hblayout = None
+
+    def __init__(self, parent=None):
+        QWidget.__init__(self, parent=parent)
+        self.hblayout = QHBoxLayout(self)
+        self.hblayout.setContentsMargins(2, 2, 2, 2)
+
+    def doAction(self):
+        raise NotImplementedError()
+
+    def settings(self):
+        raise NotImplementedError()
+
+    def loadSettings(self, settings):
+        raise NotImplementedError()
+
+class BulkSetActionWidget(BulkActionBaseWidget):
+    type = BulkActionType.SET
     index = 0
     matchLineEdit = QLineEdit()
     actionsComboBox = QComboBox()
 
     def __init__(self, parent=None):
-        QWidget.__init__(self, parent=parent)
-        hblayout = QHBoxLayout(self)
-        hblayout.setContentsMargins(2, 2, 2, 2)
+        BulkActionBaseWidget.__init__(self, parent=parent)
 
         self.actionsComboBox = QComboBox()
-        self.actionsComboBox.addItem(QIcon.fromTheme("view-refresh"),'Visible', BulkAction.BOOL_VISIBLE)
-        self.actionsComboBox.addItem(QIcon.fromTheme("view-refresh"),'Locked', BulkAction.BOOL_LOCKED)
-        self.actionsComboBox.addItem(QIcon.fromTheme("view-refresh"),'Alpha Locked', BulkAction.BOOL_ALPHA_LOCKED)
-        self.actionsComboBox.addItem(QIcon.fromTheme("view-refresh"),'Collapsed', BulkAction.BOOL_COLLAPSED)
-        self.actionsComboBox.addItem(QIcon.fromTheme("view-refresh"),'Inherit Alpha', BulkAction.BOOL_INHERIT_ALPHA)
+        self.actionsComboBox.addItem('Opacity', BulkAction.SET_OPACITY)
+
+        self.matchLineEdit = QLineEdit()
+        self.matchLineEdit.setText('')
+        self.matchLineEdit.setPlaceholderText('pattern')
+
+
+        self.valueLineEdit = QLineEdit()
+        self.valueLineEdit.setText('')
+        self.valueLineEdit.setPlaceholderText('0 - 100%')
+        self.valueLineEdit.setFixedWidth(55)
+
+        applyButton = QToolButton()
+        applyButton.setIcon(QIcon.fromTheme("checkmark"))
+
+        applyButton.released.connect(
+            partial(self.doAction, self.actionsComboBox, self.matchLineEdit, self.valueLineEdit)
+        )
+
+        self.actionsComboBox.activated.connect(
+            partial(self.actionsComboBoxActivated, self.actionsComboBox)
+        )
+        self.matchLineEdit.returnPressed.connect(
+            partial(self.doAction, self.actionsComboBox, self.matchLineEdit, self.valueLineEdit)
+        )
+
+        self.valueLineEdit.returnPressed.connect(
+            partial(self.doAction, self.actionsComboBox, self.matchLineEdit, self.valueLineEdit)
+        )
+
+        self.hblayout.addWidget(applyButton)
+        self.hblayout.addWidget(self.actionsComboBox)
+        self.hblayout.addWidget(self.valueLineEdit)
+        self.hblayout.addWidget(self.matchLineEdit)
+
+    def actionsComboBoxActivated(self, combo):
+        index = combo.currentIndex()
+        self.index = index
+
+    def settings(self):
+        return { 'index': self.actionsComboBox.currentIndex(), 'match': self.matchLineEdit.text(), 'value': self.valueLineEdit.text() }
+
+    def loadSettings(self, settings):
+        self.actionsComboBox.setCurrentIndex(settings['index'])
+        self.matchLineEdit.setText(settings['match'])
+        self.valueLineEdit.setText(settings['value'])
+
+    def doAction(self, comboBox, lineEdit, valueEdit):
+
+        doc = KI.activeDocument()
+        if doc == None:
+            return
+
+        try:
+            action_type = comboBox.itemData(comboBox.currentIndex())
+            value_text = valueEdit.text()
+            match_text = lineEdit.text()
+            numbers = re.compile('\d+(?:\.\d+)?')
+            value_text = numbers.findall(value_text)[0]
+            if value_text == '':
+                value_text = '100'
+            value_text = clamp(float(value_text),0,100)
+            value_text = int(remap(value_text,0.0,100.0,0,255))
+
+            root = doc.rootNode()
+            root = KritaNode(root)
+            it = iterPre(root)
+
+            if match_text == "":
+                nodes = KI.activeWindow().activeView().selectedNodes()
+                it = map(partial(KritaNode), nodes)
+            else:
+                it = filter(lambda n: n.match(lineEdit.text()), it)
+
+            def setOpacity(n):
+                n.raw.setOpacity(value_text)
+
+            if action_type is BulkAction.SET_OPACITY:
+                it = map(setOpacity, it)
+
+            kickstart(it)
+            doc.refreshProjection()
+        except ValueError as e:
+            print(e)
+
+class BulkBoolActionWidget(BulkActionBaseWidget):
+    type = BulkActionType.BOOL
+    index = 0
+    matchLineEdit = QLineEdit()
+    actionsComboBox = QComboBox()
+
+    def __init__(self, parent=None):
+        BulkActionBaseWidget.__init__(self, parent=parent)
+
+        self.actionsComboBox = QComboBox()
+        self.actionsComboBox.addItem('Visible', BulkAction.BOOL_VISIBLE)
+        self.actionsComboBox.addItem('Locked', BulkAction.BOOL_LOCKED)
+        self.actionsComboBox.addItem('Alpha Locked', BulkAction.BOOL_ALPHA_LOCKED)
+        self.actionsComboBox.addItem('Collapsed', BulkAction.BOOL_COLLAPSED)
+        self.actionsComboBox.addItem('Inherit Alpha', BulkAction.BOOL_INHERIT_ALPHA)
         #self.actionsComboBox.insertSeparator(5)
         #self.actionsComboBox.addItem(QIcon.fromTheme("edit-rename"),'Opacity', BulkAction.INT_OPACITY)
 
         #self.actionsComboBox.addItem('Opacity 100%', 3)
 
         self.matchLineEdit = QLineEdit()
-        self.matchLineEdit.setText('👁')
+        self.matchLineEdit.setText('')
+        self.matchLineEdit.setPlaceholderText('pattern')
 
         applyButton = QToolButton()
-        applyButton.setIcon(QIcon.fromTheme("checkmark"))
+        applyButton.setIcon(QIcon.fromTheme("view-refresh"))
 
         applyButton.released.connect(
             partial(self.doAction, self.actionsComboBox, self.matchLineEdit)
@@ -96,9 +225,9 @@ class BulkActionWidget(QWidget):
             partial(self.doAction, self.actionsComboBox, self.matchLineEdit)
         )
 
-        hblayout.addWidget(applyButton)
-        hblayout.addWidget(self.actionsComboBox)
-        hblayout.addWidget(self.matchLineEdit)
+        self.hblayout.addWidget(applyButton)
+        self.hblayout.addWidget(self.actionsComboBox)
+        self.hblayout.addWidget(self.matchLineEdit)
 
     def actionsComboBoxActivated(self, combo):
         index = combo.currentIndex()
@@ -112,15 +241,27 @@ class BulkActionWidget(QWidget):
         self.matchLineEdit.setText(settings['match'])
 
     def doAction(self, comboBox, lineEdit):
+
+        doc = KI.activeDocument()
+        if doc == None:
+            return
+
         #msg, timeout = (cfg["done"]["msg"].format("Renaming successful!"), cfg["done"]["timeout"])
         try:
             action_type = comboBox.itemData(comboBox.currentIndex())
+            match_text = lineEdit.text()
             #print('Action type',action_type)
             doc = KI.activeDocument()
             root = doc.rootNode()
             root = KritaNode(root)
 
             it = iterPre(root)
+
+            if match_text == "":
+                nodes = KI.activeWindow().activeView().selectedNodes()
+                it = map(partial(KritaNode), nodes)
+            else:
+                it = filter(lambda n: n.match(lineEdit.text()), it)
 
             def toggleVisible(n):
                 n.setVisible(not n.visible())
@@ -134,7 +275,6 @@ class BulkActionWidget(QWidget):
             def toggleInheritAlpha(n):
                 n.raw.setInheritAlpha(not n.raw.inheritAlpha())
 
-            it = filter(lambda n: n.match(lineEdit.text()), it)
             if action_type is BulkAction.BOOL_VISIBLE:
                 it = map(toggleVisible, it)
             if action_type is BulkAction.BOOL_LOCKED:
@@ -177,12 +317,19 @@ class BulkActionsDockWidget(DockWidget):
             if child.widget():
                 child.widget().deleteLater()
 
-    def addNewBulkAction(self, settings=None):
+    def addNewBulkAction(self, bulk_action_type, settings=None):
 
         removeButton = QToolButton()
         removeButton.setIcon(QIcon.fromTheme("list-remove"))
 
-        bulkActionWidget = BulkActionWidget()
+        bulkActionWidget = None
+
+        if bulk_action_type == BulkActionType.BOOL:
+            bulkActionWidget = BulkBoolActionWidget()
+        elif bulk_action_type == BulkActionType.SET:
+            bulkActionWidget = BulkSetActionWidget()
+        else:
+            raise NotImplementedError()
 
         if settings is not None:
             bulkActionWidget.loadSettings(settings)
@@ -208,11 +355,14 @@ class BulkActionsDockWidget(DockWidget):
 
     def hasSettings(self):
 
+        doc = KI.activeDocument()
+        if doc == None:
+            return False
+
         # TODO The following works but it's saved in kritarc - we want a way to save it with the document
         #entry = Application.readSetting('bulkActionsPlugin', 'settings', None)
         #return entry is not None
 
-        doc = KI.activeDocument()
         root = doc.rootNode()
         root = KritaNode(root)
 
@@ -233,6 +383,10 @@ class BulkActionsDockWidget(DockWidget):
     def loadSettings(self):
         #print('Loading...')
 
+        doc = KI.activeDocument()
+        if doc == None:
+            return
+
         # TODO The following works but it's saved in kritarc - we want a way to save it with the document
         #entry = Application.readSetting('bulkActionsPlugin', 'settings', None)
         #return entry is not None
@@ -242,7 +396,7 @@ class BulkActionsDockWidget(DockWidget):
 
         decoded = None
 
-        doc = KI.activeDocument()
+
         root = doc.rootNode()
         root = KritaNode(root)
 
@@ -272,23 +426,35 @@ class BulkActionsDockWidget(DockWidget):
         if self.hasSettings():
             self.clearBulkActions()
             settings = self.loadSettings()
-            for actionSetting in settings['actions']:
-                self.addNewBulkAction(actionSetting)
+            if settings['version'] == 1.0:
+                for actionSetting in settings['actions']:
+                    self.addNewBulkAction(BulkActionType.BOOL,actionSetting)
+            if settings['version'] == 1.1:
+                for actionSetting in settings['actions']:
+                    #print(actionSetting, actionSetting['type'],  BulkActionType(actionSetting['type']))
+                    self.addNewBulkAction(BulkActionType(actionSetting['type']), actionSetting['settings'])
 
     def saveSettings(self):
+
+        doc = KI.activeDocument()
+        if doc == None:
+            return
+
         #msg, timeout = (cfg["done"]["msg"].format("Renaming successful!"), cfg["done"]["timeout"])
         try:
             bulkActions = []
             for ba in self.actions:
-                bulkActions.append(ba.settings())
-            data = json.dumps({ 'version': 1.0, 'actions':bulkActions }, separators=(',', ':'))
+                bulkActions.append( { 'settings': ba.settings(), 'type': ba.type.value } )
+            data = json.dumps({ 'version': 1.1, 'actions':bulkActions }, separators=(',', ':'))
             encodedBytes = base64.b64encode(data.encode("utf-8"))
             encoded = str(encodedBytes, "utf-8")
+
+            #print(data)
+            #return
 
             # TODO The following works but it's saved in kritarc - we want a way to save it with each document
             #Application.writeSetting('bulkActionsPlugin', 'settings', encoded)
 
-            doc = KI.activeDocument()
             root = doc.rootNode()
             root = KritaNode(root)
 
@@ -353,12 +519,16 @@ class BulkActionsDockWidget(DockWidget):
         helpButton = QToolButton() # self.title+" Help"
         helpButton.setIcon(QIcon.fromTheme("help-contents"))
 
-        addButton = QToolButton()
-        addButton.setIcon(QIcon.fromTheme("list-add"))
+        addBoolButton = QToolButton()
+        addBoolButton.setIcon(QIcon.fromTheme("view-refresh"))
+
+        addSetButton = QToolButton()
+        addSetButton.setIcon(QIcon.fromTheme("checkmark"))
 
         helpHBoxLayout = QHBoxLayout()
         helpHBoxLayout.addWidget(QLabel("Add action"))
-        helpHBoxLayout.addWidget(addButton)
+        helpHBoxLayout.addWidget(addBoolButton)
+        helpHBoxLayout.addWidget(addSetButton)
         helpHBoxLayout.addStretch()
         helpHBoxLayout.addWidget(helpButton)
 
@@ -400,8 +570,15 @@ class BulkActionsDockWidget(DockWidget):
         helpButton.clicked.connect(
             partial(openHelp)
         )
-        addButton.clicked.connect(
-            partial(self.addNewBulkAction, None)
+
+
+        # Extremly weird bug where clicks on the buttons call the wrong method?
+        addBoolButton.clicked.connect(
+            partial(self.addNewBulkAction, BulkActionType.BOOL, None )
+        )
+
+        addSetButton.clicked.connect(
+            partial(self.addNewBulkAction, BulkActionType.SET, None )
         )
 
         uiContainer.setLayout(mainLayout)
