@@ -29,6 +29,8 @@ from PyQt5.QtGui import (
     QIcon,
 )
 from PyQt5.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
     QScrollArea,
     QPushButton,
     QToolButton,
@@ -47,19 +49,10 @@ from .KritaNode import KritaNode
 
 from .UI import QHLine
 
-from .Utils import kickstart, flip
+from .Utils import kickstart, flip, remap, clamp
 from .Utils.Tree import iterPre
 
 KI = Krita.instance()
-
-def remap(oldValue, oldMin, oldMax, newMin, newMax):
-    # Linear conversion
-    if oldMin == newMin and oldMax == newMax:
-        return oldValue;
-    return (((oldValue - oldMin) * (newMax - newMin)) / (oldMax - oldMin)) + newMin;
-
-def clamp(value, clamp_min, clamp_max):
-    return min(clamp_max, max(clamp_min, value))
 
 def openHelp():
     webbrowser.open("https://github.com/Larpon/krita-bulk-actions", new=0, autoraise=True)
@@ -126,7 +119,7 @@ class BulkSetActionWidget(BulkActionBaseWidget):
         )
 
         self.actionsComboBox.activated.connect(
-            partial(self.actionsComboBoxActivated, self.actionsComboBox)
+            partial(self.actionsComboBoxActivated)
         )
         self.matchLineEdit.returnPressed.connect(
             partial(self.doAction, self.actionsComboBox, self.matchLineEdit, self.valueLineEdit)
@@ -141,8 +134,8 @@ class BulkSetActionWidget(BulkActionBaseWidget):
         self.hblayout.addWidget(self.valueLineEdit)
         self.hblayout.addWidget(self.matchLineEdit)
 
-    def actionsComboBoxActivated(self, combo):
-        index = combo.currentIndex()
+    def actionsComboBoxActivated(self):
+        index = self.actionsComboBox.currentIndex()
 
         if index == 0:
             self.valueLineEdit.setPlaceholderText('0 - 100%')
@@ -151,7 +144,7 @@ class BulkSetActionWidget(BulkActionBaseWidget):
         if index == 1:
             self.valueLineEdit.setPlaceholderText('new name')
             self.valueLineEdit.setFixedWidth(QWIDGETSIZE_MAX)
-            self.matchLineEdit.setPlaceholderText('old name')
+            self.matchLineEdit.setPlaceholderText('pattern')
 
         self.index = index
 
@@ -160,8 +153,20 @@ class BulkSetActionWidget(BulkActionBaseWidget):
 
     def loadSettings(self, settings):
         self.actionsComboBox.setCurrentIndex(settings['index'])
+        self.actionsComboBoxActivated()
         self.matchLineEdit.setText(settings['match'])
         self.valueLineEdit.setText(settings['value'])
+
+    def openPreviewActionDialog(self, content):
+        dialog = QDialog()
+        dialog.setWindowTitle(i18n("Confirm renaming"))
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        dialog.setLayout(QVBoxLayout())
+        dialog.layout().addWidget(content)
+        dialog.layout().addWidget(buttons)
+        return dialog
 
     def doAction(self, comboBox, lineEdit, valueEdit):
 
@@ -190,32 +195,79 @@ class BulkSetActionWidget(BulkActionBaseWidget):
             root = KritaNode(root)
             it = iterPre(root)
 
+            user_pattern = False
+
             if match_text == "":
                 nodes = KI.activeWindow().activeView().selectedNodes()
                 it = map(partial(KritaNode), nodes)
             else:
+                user_pattern = True
                 it = filter(lambda n: n.match(lineEdit.text()), it)
 
-            count = sum(1 for _ in it)
+            count_down, count_up = 0, -1
 
             def setOpacity(n):
                 n.raw.setOpacity(value_text)
-            def setName(n):
-                count = count - 1
-                print( count, n.raw.name() ) # TODO
-                #n.raw.setName(value_text)
+            def setName(n, preview):
+                nonlocal count_down, count_up
+                count_up = count_up + 1
+                count_down = count_down - 1
+
+                text = value_text
+
+                mapping = [ ('i++', 'count_up'), ('i--', 'count_down'), ('i+', 'count_up_one'), ('i-', 'count_down_one'), \
+                    ('{%name}', n.raw.name()) \
+                ]
+                for k, v in mapping:
+                    text = text.replace(k, v)
+
+
+                mappings={\
+                    'count_up':count_up, 'count_down':count_down, \
+                    'count_up_one':count_up+1, 'count_down_one':count_down+1, \
+                }
+                try:
+                    text = text.format_map(mappings)
+                except KeyError as e:
+                    #for k, v in [ ('{', '{{'), ('}', '}}') ]:
+                    #    text = text.replace(k, v)
+                    text = text
+
+                if preview:
+                    return (n.raw.name(),text)
+
+                n.raw.setName(text)
 
             if action_type is BulkAction.SET_OPACITY:
                 it = map(setOpacity, it)
             if action_type is BulkAction.SET_NAME:
-                it = map(setName, it)
+                oit = it
+                lst = list(it)
+                if user_pattern:
+                    lst = list(reversed(lst))
+                count_down = len(lst)
 
+                it = list()
 
+                preview = ''
+                for i, val in enumerate(lst):
+                    vals = setName(val,True)
+                    preview = preview + '{} => {}\n'.format(vals[0],vals[1])
+
+                preview = preview + 'Press \'OK\' to rename'
+                label = QLabel(preview)
+                dialog = self.openPreviewActionDialog(label)
+
+                if dialog.exec_() == QDialog.Accepted:
+                    count_down, count_up = len(lst), -1
+                    it = map(partial(flip(setName),False), lst)
 
             kickstart(it)
             doc.refreshProjection()
         except ValueError as e:
             print(e)
+        #except KeyError as e:
+        #    print(e)
 
 class BulkBoolActionWidget(BulkActionBaseWidget):
     type = BulkActionType.BOOL
