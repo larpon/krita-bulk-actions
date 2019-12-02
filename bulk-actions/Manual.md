@@ -20,8 +20,6 @@ Once placed the plugin docker can be activated via *Settings -> Dockers -> Bulk 
 
 ## Supported layer actions
 
-Leaving the `pattern` field empty will result in matching currently selected layers
-
 Set a value for the following attributes:
 
 * Opacity
