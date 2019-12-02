@@ -5,11 +5,13 @@
 <p>This is especially convenient if you have a layers you want to switch on and off often spread across the layer tree.</p>
 <h2 id="install">Install</h2>
 <p>You install the plugin by placing the <code>bulk-action</code> folder and <code>bulk-action.desktop</code> file from this repository in your <code>pykrita</code> folder. You can find the <code>pykrita</code> folder in the menu by going to <em>Settings -&gt; Manage Resources...</em> and press the <em>Open Resources Folder</em> button.</p>
+<p>Once placed the plugin docker can be activated via <em>Settings -&gt; Dockers -&gt; Bulk Actions</em></p>
 <h2 id="supported-layer-actions">Supported layer actions</h2>
 <p>Leaving the <code>pattern</code> field empty will result in matching currently selected layers</p>
 <p>Set a value for the following attributes:</p>
 <ul>
 <li>Opacity</li>
+<li>Name</li>
 </ul>
 <p>Toggle the following attributes:</p>
 <ul>
@@ -19,7 +21,35 @@
 <li>Collapsed state</li>
 <li>Inherit Alpha</li>
 </ul>
-<h2 id="example">Example</h2>
+<h2 id="usage">Usage</h2>
+<p>To add actions use the icons after &quot;Add action&quot;.</p>
+<p>Your actions will be applied to the currently <em>selected</em> layers if you leave the <code>pattern</code> field <em>empty</em> <strong>otherwise</strong> the action will be applied to the layers <em>matching</em> the pattern in the <code>pattern</code> field (available with each action). The <code>pattern</code> field is for each action only - no other layers will be touched.</p>
+<p>For modifying actions such as layer renaming - you will be able to see, and accept, the modifications before they're applied!</p>
+<h3 id="applying-an-action">Applying an action</h3>
+<ul>
+<li>Click the leftmost icon of an action entry.</li>
+</ul>
+<h3 id="removing-an-action">Removing an action</h3>
+<ul>
+<li>Click the rightmost icon (<code>-</code>) of an action entry.</li>
+</ul>
+<h3 id="saving-actions">Saving actions</h3>
+<p>To save your actions with each <code>.kra</code> document you need to have an open document, then:</p>
+<ul>
+<li>Press the &quot;Save&quot; button in the bottom part of the docker</li>
+<li>Remember to save your document as well, when appropriate.</li>
+</ul>
+<h3 id="loading-actions">Loading actions</h3>
+<ul>
+<li>Press the &quot;Load&quot; button in the bottom part of the docker.</li>
+</ul>
+<h3 id="clearing-actions">Clearing actions</h3>
+<ul>
+<li>Press the &quot;Clear&quot; button in the bottom part of the docker.</li>
+</ul>
+<p>See Notes below for more technical details on saving and loading.</p>
+<h2 id="examples">Examples</h2>
+<h3 id="toggling-visibility">Toggling visibility</h3>
 <p>You have character with different body parts and those body parts have layers for shadows. You want to be able to see the character with and without the effect of your shadows. You then simply mark those layers with a character i.e: &quot;@&quot; in the layer name and then setup a bulk action for changing their visibility:</p>
 <pre><code>Root
   +-- Robot
